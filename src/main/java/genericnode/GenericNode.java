@@ -37,27 +37,31 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.rmi.NoSuchObjectException;
 
-public class GenericNode 
-{   /**
+public class GenericNode {
+    /**
      * @param args the command line arguments
      */
+
     // Using same HashMap for TCP and UDP
     static final Map<String, String> dataMap = new ConcurrentHashMap<>();
-    private static ConcurrentHashMap<String, String> nodeAddresses = new ConcurrentHashMap<>();
+   public ConcurrentHashMap<String, String> nodeAddresses = new ConcurrentHashMap<>();
+
     public static Boolean sendCommanddput1(String key, String value) throws IOException {
-    Boolean isAborted = false;
+        Boolean isAborted = false;
+
         // Step 1: Get all members from member directory
         // Step 2: Loop through all members and send dput1 command to each member
         // Step 3: If any member aborts, set isAborted to true and return
-    try (Socket socket = new Socket("localhost", 4410);
+        try (Socket socket = new Socket("localhost", 4410);
                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                             out.println("dput1 " + key + " " + value);
                             out.flush();
                     }
-    return isAborted;
+
+        return isAborted;
     }
-    private static void loadNodeAddresses() {
+    public void loadNodeAddresses() {
         try {
             List<String> lines = Files.readAllLines(Paths.get("/tmp/nodes.cfg"));
             nodeAddresses.clear(); // Clear previous entries
@@ -71,14 +75,13 @@ public class GenericNode
             e.printStackTrace();
         }
     }
-    private static void startConfigurationReloading() {
+    public  void startConfigurationReloading() {
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
     }
 
     public static void main(String[] args) throws IOException {
-        GenericNode app = new GenericNode();
-        app.startConfigurationReloading();
+
         if (args.length > 0) {
             if (args[0].equals("tc")){
                 String addr = args[1];
@@ -138,6 +141,8 @@ public class GenericNode
                                 String key;
                                 String value;
                                 String response = "";
+                                
+
                                     switch (command) {
                                         case "put":
                                             if (tokens.length == 3) {
@@ -198,6 +203,7 @@ public class GenericNode
                                             out.println(response); // Send the response to the client
                                             out.flush(); // Ensure the response is sent immediately
                                             break;
+
                                         case "dput1":
                                             System.out.println("dput1 command received");
                                             System.out.println("Key: " + tokens[1]);
@@ -219,6 +225,10 @@ public class GenericNode
                                             out.println(response);
                                             break;
                                     }
+                                    
+                                
+
+                                
 
                             } catch (IOException e) 
                             {
@@ -241,9 +251,13 @@ public class GenericNode
                     
                 }catch (IOException e) 
                 {
+                   
                     System.out.println(port+" is already in use");
+                    
                 } 
             }
+            
+
         } else {
             String msg = "GenericNode Usage:\n\n" +
                     "Client:\n" +
