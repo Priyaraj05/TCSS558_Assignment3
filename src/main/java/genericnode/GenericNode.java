@@ -4,7 +4,6 @@
  * and open the template in the editor.
  */
 package genericnode;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -16,12 +15,17 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.AbstractMap.SimpleEntry;
 import java.rmi.Remote;
@@ -40,6 +44,7 @@ public class GenericNode {
 
     // Using same HashMap for TCP and UDP
     static final Map<String, String> dataMap = new ConcurrentHashMap<>();
+   public ConcurrentHashMap<String, String> nodeAddresses = new ConcurrentHashMap<>();
 
     public static Boolean sendCommanddput1(String key, String value) throws IOException {
         Boolean isAborted = false;
@@ -47,7 +52,6 @@ public class GenericNode {
         // Step 1: Get all members from member directory
         // Step 2: Loop through all members and send dput1 command to each member
         // Step 3: If any member aborts, set isAborted to true and return
-
         try (Socket socket = new Socket("localhost", 4410);
                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
@@ -56,6 +60,24 @@ public class GenericNode {
                     }
 
         return isAborted;
+    }
+    public void loadNodeAddresses() {
+        try {
+            List<String> lines = Files.readAllLines(Paths.get("/tmp/nodes.cfg"));
+            nodeAddresses.clear(); // Clear previous entries
+            for (String line : lines) {
+                String[] parts = line.split(":");
+                if (parts.length == 2) {
+                    nodeAddresses.put(parts[0], parts[1]); // IP as key, PORT as value
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    public  void startConfigurationReloading() {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
     }
 
     public static void main(String[] args) throws IOException {
