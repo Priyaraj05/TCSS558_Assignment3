@@ -4,7 +4,6 @@
  * and open the template in the editor.
  */
 package genericnode;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -12,16 +11,22 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,15 +34,13 @@ public class GenericNode {
     /**
      * @param args the command line arguments
      */
-
     // Using same HashMap for TCP and UDP
     static final Map<String, String> dataMap = new ConcurrentHashMap<>();
+    static final Map<String, String> ipAddressMap = new ConcurrentHashMap<>();
     // create a set to store all locked keys
     static final Set<String> lockedKeys = new HashSet<>();
-
-    private static Boolean sendCommandDput1(String key, String value, HashMap<String, String> ipAddressMap)
-            throws IOException {
-
+    private static Boolean sendCommandDput1(String key, String value, Map<String, String> ipAddressMap)
+    throws IOException {
         Boolean isAborted = false;
 
         // Step 1: Get all members from member directory
@@ -73,7 +76,7 @@ public class GenericNode {
         return isAborted;
     }
 
-    private static void sendCommandDputAbort(String key, String value, HashMap<String, String> ipAddressMap) {
+    private static void sendCommandDputAbort(String key, String value, Map<String, String> ipAddressMap) {
 
         ExecutorService dputAbortCommandExecutor = Executors.newCachedThreadPool();
 
@@ -102,12 +105,10 @@ public class GenericNode {
                     System.out.println("Error when sending dput1 command to " + entry.getKey());
                 }
             });
-
             
         }
     }
-
-    private static void sendCommandDput2(String key, String value, HashMap<String, String> ipAddressMap) {
+    private static void sendCommandDput2(String key, String value, Map<String, String> ipAddressMap) {
 
         ExecutorService dput2CommandExecutor = Executors.newCachedThreadPool();
 
@@ -136,18 +137,30 @@ public class GenericNode {
                     System.out.println("Error when sending dput1 command to " + entry.getKey());
                 }
             });
-
-            
         }
+    }
+    private static void loadNodeAddresses() {
+        try {
+            List<String> lines = Files.readAllLines(Paths.get("/tmp/nodes.cfg"));
+            ipAddressMap.clear(); // Clear previous entries
+            for (String line : lines) {
+                String[] parts = line.split(":");
+                if (parts.length == 2) {
+                    ipAddressMap.put(parts[0], parts[1]); // IP as key, PORT as value
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    private static void startConfigurationReloading() {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
     }
 
     public static void main(String[] args) throws IOException {
-
-        // sample member directory till membership directory is implemented
-        HashMap<String, String> ipAddressMap = new HashMap<>();
-        ipAddressMap.put("node1", "localhost:4410");
-        ipAddressMap.put("node2", "localhost:4411");
-
+        startConfigurationReloading();
+        
         if (args.length > 0) {
             if (args[0].equals("tc")) {
                 String addr = args[1];
