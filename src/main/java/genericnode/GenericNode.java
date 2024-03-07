@@ -12,6 +12,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +40,7 @@ public class GenericNode {
     static final Map<String, String> ipAddressMap = new ConcurrentHashMap<>();
     // create a set to store all locked keys
     static final Set<String> lockedKeys = new HashSet<>();
+    
     private static Boolean sendCommandDput1(String key, String value, Map<String, String> ipAddressMap)
     throws IOException {
         Boolean isAborted = false;
@@ -51,9 +53,16 @@ public class GenericNode {
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
+            // For local testing
+
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
+
+            // For testing in docker
+            
+            // String ipAddress = entry.getKey();
+            // String port = entry.getValue();
 
             System.out.println("Sending dput1 command to " + ipAddress + ":" + port);
 
@@ -82,9 +91,16 @@ public class GenericNode {
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
+            // For local testing
+
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
+
+            // For testing in docker
+
+            // String ipAddress = entry.getKey();
+            // String port = entry.getValue();
 
             System.out.println("Sending dputAbort command to " + ipAddress + ":" + port);
 
@@ -114,9 +130,16 @@ public class GenericNode {
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
+            // For local testing
+
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
+
+            // For testing in docker
+
+            // String ipAddress = entry.getKey();
+            // String port = entry.getValue();
 
             System.out.println("Sending dput2 command to " + ipAddress + ":" + port);
 
@@ -141,14 +164,24 @@ public class GenericNode {
     }
     private static void loadNodeAddresses() {
         try {
-            List<String> lines = Files.readAllLines(Paths.get("/tmp/nodes.cfg"));
+            List<String> lines = Files.readAllLines(Paths.get(Path.of("").toAbsolutePath().toString()+"/tmp/nodes.cfg"));
             ipAddressMap.clear(); // Clear previous entries
-            for (String line : lines) {
-                String[] parts = line.split(":");
-                if (parts.length == 2) {
-                    ipAddressMap.put(parts[0], parts[1]); // IP as key, PORT as value
+
+            // For testing in docker
+
+            // for (String line : lines) {
+            //     String[] parts = line.split(":");
+            //     if (parts.length == 2) {
+            //         ipAddressMap.put(parts[0], parts[1]); // IP as key, PORT as value
+            //     }
+
+            // For local testing
+
+            for (int i = 0; i < lines.size(); i++) {
+                    ipAddressMap.put("node"+i, lines.get(i));
                 }
-            }
+                    
+            
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -159,7 +192,6 @@ public class GenericNode {
     }
 
     public static void main(String[] args) throws IOException {
-        startConfigurationReloading();
         
         if (args.length > 0) {
             if (args[0].equals("tc")) {
@@ -196,6 +228,7 @@ public class GenericNode {
                 }
             }
             if (args[0].equals("ts")) {
+                startConfigurationReloading();
                 System.out.println("TCP SERVER");
                 int port = Integer.parseInt(args[1]);
 
