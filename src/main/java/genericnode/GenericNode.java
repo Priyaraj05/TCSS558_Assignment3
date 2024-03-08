@@ -4,10 +4,12 @@
  * and open the template in the editor.
  */
 package genericnode;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -33,14 +35,15 @@ public class GenericNode {
     /**
      * @param args the command line arguments
      */
-    // Using same HashMap for TCP and UDP
+
     static final Map<String, String> dataMap = new ConcurrentHashMap<>();
     static final Map<String, String> ipAddressMap = new ConcurrentHashMap<>();
     // create a set to store all locked keys
     static final Set<String> lockedKeys = new HashSet<>();
-    
-    private static Boolean sendCommandDput1(String key, String value, Map<String, String> ipAddressMap)
-    throws IOException {
+
+    private static Boolean sendCommandDput1(String key, String value, Map<String, String> ipAddressMap,
+            String currentIPAddress)
+            throws IOException {
         Boolean isAborted = false;
 
         // Step 1: Get all members from member directory
@@ -51,31 +54,28 @@ public class GenericNode {
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
-            // For local testing
-
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
 
-            // For testing in docker
-            
-            // String ipAddress = entry.getKey();
-            // String port = entry.getValue();
+            if (!ipAddressPost.equals(currentIPAddress)) {
 
-            System.out.println("Sending dput1 command to " + ipAddress + ":" + port);
+                System.out.println("Sending dput1 command to " + ipAddress + ":" + port);
 
-            Future<Boolean> future = dput1CommandExecutor.submit(new Dput1Handler(key, value, ipAddress, port));
+                Future<Boolean> future = dput1CommandExecutor.submit(new Dput1Handler(key, value, ipAddress, port));
 
-            try {
-                isAborted = future.get();
-                if (isAborted) {
-                    dput1CommandExecutor.shutdown();
-                    return isAborted;
+                try {
+                    isAborted = future.get();
+                    if (isAborted) {
+                        dput1CommandExecutor.shutdown();
+                        return isAborted;
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    System.out.println("Error when getting response from " + ipAddress + ":" + port);
+                    // e.printStackTrace();
                 }
-            } catch (InterruptedException | ExecutionException e) {
-                System.out.println("Error when getting response from " + ipAddress + ":" + port);
-                // e.printStackTrace();
             }
+
         }
 
         dput1CommandExecutor.shutdown();
@@ -83,39 +83,36 @@ public class GenericNode {
         return isAborted;
     }
 
-    private static Boolean sendCommandDdel1(String key, Map<String, String> ipAddressMap)
-    throws IOException {
+    private static Boolean sendCommandDdel1(String key, Map<String, String> ipAddressMap, String currentIPAddress)
+            throws IOException {
         Boolean isAborted = false;
 
         ExecutorService ddel1CommandExecutor = Executors.newCachedThreadPool();
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
-            // For local testing
-
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
 
-            // For testing in docker
-            
-            // String ipAddress = entry.getKey();
-            // String port = entry.getValue();
+            if (!ipAddressPost.equals(currentIPAddress)) {
 
-            System.out.println("Sending ddel1 command to " + ipAddress + ":" + port);
+                System.out.println("Sending ddel1 command to " + ipAddress + ":" + port);
 
-            Future<Boolean> future = ddel1CommandExecutor.submit(new Ddel1Handler(key, ipAddress, port));
+                Future<Boolean> future = ddel1CommandExecutor.submit(new Ddel1Handler(key, ipAddress, port));
 
-            try {
-                isAborted = future.get();
-                if (isAborted) {
-                    ddel1CommandExecutor.shutdown();
-                    return isAborted;
+                try {
+                    isAborted = future.get();
+                    if (isAborted) {
+                        ddel1CommandExecutor.shutdown();
+                        return isAborted;
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    System.out.println("Error when getting response from " + ipAddress + ":" + port);
+                    // e.printStackTrace();
                 }
-            } catch (InterruptedException | ExecutionException e) {
-                System.out.println("Error when getting response from " + ipAddress + ":" + port);
-                // e.printStackTrace();
             }
+
         }
 
         ddel1CommandExecutor.shutdown();
@@ -123,167 +120,160 @@ public class GenericNode {
         return isAborted;
     }
 
-    private static void sendCommandDputAbort(String key, String value, Map<String, String> ipAddressMap) {
+    private static void sendCommandDputAbort(String key, String value, Map<String, String> ipAddressMap,
+            String currentIPAddress) {
 
         ExecutorService dputAbortCommandExecutor = Executors.newCachedThreadPool();
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
-            // For local testing
-
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
 
-            // For testing in docker
+            if (!ipAddressPost.equals(currentIPAddress)) {
 
-            // String ipAddress = entry.getKey();
-            // String port = entry.getValue();
+                System.out.println("Sending dputAbort command to " + ipAddress + ":" + port);
 
-            System.out.println("Sending dputAbort command to " + ipAddress + ":" + port);
+                dputAbortCommandExecutor.execute(() -> {
+                    try (
+                            Socket socket = new Socket(ipAddress, Integer.parseInt(port));
+                            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            dputAbortCommandExecutor.execute( () -> {
-                try (
-                        Socket socket = new Socket(ipAddress, Integer.parseInt(port));
-                        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                        out.println("dputabort " + key + " " + value);
+                        out.flush();
 
-                    out.println("dputabort " + key + " " + value);
-                    out.flush();
+                        String response = in.readLine();
 
-                    String response = in.readLine();
-                    
-                    System.out.println(ipAddress + ":" + port+" responsed with: " + response + " for dputabort command");
+                        System.out.println(
+                                ipAddress + ":" + port + " responsed with: " + response + " for dputabort command");
 
-                } catch (IOException e) {
-                    System.out.println("Error when sending dputabort command to " + entry.getKey());
-                }
-            });
-            
+                    } catch (IOException e) {
+                        System.out.println("Error when sending dputabort command to " + entry.getKey());
+                    }
+                });
+            }
+
         }
 
         dputAbortCommandExecutor.shutdown();
     }
 
-    private static void sendCommandDdelAbort(String key, Map<String, String> ipAddressMap) {
+    private static void sendCommandDdelAbort(String key, Map<String, String> ipAddressMap, String currentIPAddress) {
 
         ExecutorService ddelAbortCommandExecutor = Executors.newCachedThreadPool();
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
-            // For local testing
-
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
 
-            // For testing in docker
+            if (!ipAddressPost.equals(currentIPAddress)) {
 
-            // String ipAddress = entry.getKey();
-            // String port = entry.getValue();
+                System.out.println("Sending ddelabort command to " + ipAddress + ":" + port);
 
-            System.out.println("Sending ddelabort command to " + ipAddress + ":" + port);
+                ddelAbortCommandExecutor.execute(() -> {
+                    try (
+                            Socket socket = new Socket(ipAddress, Integer.parseInt(port));
+                            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            ddelAbortCommandExecutor.execute( () -> {
-                try (
-                        Socket socket = new Socket(ipAddress, Integer.parseInt(port));
-                        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                        out.println("ddelabort " + key);
+                        out.flush();
 
-                    out.println("ddelabort " + key);
-                    out.flush();
+                        String response = in.readLine();
 
-                    String response = in.readLine();
-                    
-                    System.out.println(ipAddress + ":" + port+" responsed with: " + response + " for ddelabort command");
+                        System.out.println(
+                                ipAddress + ":" + port + " responsed with: " + response + " for ddelabort command");
 
-                } catch (IOException e) {
-                    System.out.println("Error when sending ddelabort command to " + entry.getKey());
-                }
-            });
-            
+                    } catch (IOException e) {
+                        System.out.println("Error when sending ddelabort command to " + entry.getKey());
+                    }
+                });
+            }
+
         }
 
         ddelAbortCommandExecutor.shutdown();
     }
 
-    private static void sendCommandDput2(String key, String value, Map<String, String> ipAddressMap) {
+    private static void sendCommandDput2(String key, String value, Map<String, String> ipAddressMap,
+            String currentIPAddress) {
 
         ExecutorService dput2CommandExecutor = Executors.newCachedThreadPool();
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
-            // For local testing
-
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
 
-            // For testing in docker
+            if (!ipAddressPost.equals(currentIPAddress)) {
 
-            // String ipAddress = entry.getKey();
-            // String port = entry.getValue();
+                System.out.println("Sending dput2 command to " + ipAddress + ":" + port);
 
-            System.out.println("Sending dput2 command to " + ipAddress + ":" + port);
+                dput2CommandExecutor.execute(() -> {
+                    try (
+                            Socket socket = new Socket(ipAddress, Integer.parseInt(port));
+                            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            dput2CommandExecutor.execute( () -> {
-                try (
-                        Socket socket = new Socket(ipAddress, Integer.parseInt(port));
-                        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                        out.println("dput2 " + key + " " + value);
+                        out.flush();
 
-                    out.println("dput2 " + key + " " + value);
-                    out.flush();
+                        String response = in.readLine();
 
-                    String response = in.readLine();
-                    
-                    System.out.println(ipAddress + ":" + port+" responsed with: " + response + " for dput2 command");
+                        System.out.println(
+                                ipAddress + ":" + port + " responsed with: " + response + " for dput2 command");
 
-                } catch (IOException e) {
-                    System.out.println("Error when sending dput2 command to " + entry.getKey());
-                }
-            });
+                    } catch (IOException e) {
+                        System.out.println("Error when sending dput2 command to " + entry.getKey());
+                    }
+                });
+            }
+
         }
 
         dput2CommandExecutor.shutdown();
     }
 
-    private static void sendCommandDdel2(String key, Map<String, String> ipAddressMap) {
+    private static void sendCommandDdel2(String key, Map<String, String> ipAddressMap, String currentIPAddress) {
 
         ExecutorService ddel2CommandExecutor = Executors.newCachedThreadPool();
 
         for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
 
-            // For local testing
-
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
             String port = ipAddressPost.split(":")[1];
 
-            // For testing in docker
+            if (!ipAddressPost.equals(currentIPAddress)) {
 
-            // String ipAddress = entry.getKey();
-            // String port = entry.getValue();
+                System.out.println("Sending ddel2 command to " + ipAddress + ":" + port);
 
-            System.out.println("Sending ddel2 command to " + ipAddress + ":" + port);
+                ddel2CommandExecutor.execute(() -> {
+                    try (
+                            Socket socket = new Socket(ipAddress, Integer.parseInt(port));
+                            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            ddel2CommandExecutor.execute( () -> {
-                try (
-                        Socket socket = new Socket(ipAddress, Integer.parseInt(port));
-                        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                        out.println("ddel2 " + key);
+                        out.flush();
 
-                    out.println("ddel2 " + key);
-                    out.flush();
+                        String response = in.readLine();
 
-                    String response = in.readLine();
-                    
-                    System.out.println(ipAddress + ":" + port+" responsed with: " + response + " for ddel2 command");
+                        System.out.println(
+                                ipAddress + ":" + port + " responsed with: " + response + " for ddel2 command");
 
-                } catch (IOException e) {
-                    System.out.println("Error when sending ddel2 command to " + entry.getKey());
-                }
-            });
+                    } catch (IOException e) {
+                        System.out.println("Error when sending ddel2 command to " + entry.getKey());
+                    }
+                });
+
+            }
+
         }
 
         ddel2CommandExecutor.shutdown();
@@ -291,35 +281,26 @@ public class GenericNode {
 
     private static void loadNodeAddresses() {
         try {
-            List<String> lines = Files.readAllLines(Paths.get(Path.of("").toAbsolutePath().toString()+"/tmp/nodes.cfg"));
+            List<String> lines = Files
+                    .readAllLines(Paths.get(Path.of("").toAbsolutePath().toString() + "/tmp/nodes.cfg"));
             ipAddressMap.clear(); // Clear previous entries
 
-            // For testing in docker
-
-            // for (String line : lines) {
-            //     String[] parts = line.split(":");
-            //     if (parts.length == 2) {
-            //         ipAddressMap.put(parts[0], parts[1]); // IP as key, PORT as value
-            //     }
-
-            // For local testing
-
             for (int i = 0; i < lines.size(); i++) {
-                    ipAddressMap.put("node"+i, lines.get(i));
-                }
-                    
-            
+                ipAddressMap.put("node" + i, lines.get(i));
+            }
+
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
     private static void startConfigurationReloading() {
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
     }
 
     public static void main(String[] args) throws IOException {
-        
+
         if (args.length > 0) {
             if (args[0].equals("tc")) {
                 String addr = args[1];
@@ -356,12 +337,18 @@ public class GenericNode {
             }
             if (args[0].equals("ts")) {
                 startConfigurationReloading();
+                // System.out.printf("Current IP Addresses:", InetAddress.getLocalHost());
                 System.out.println("TCP SERVER");
                 int port = Integer.parseInt(args[1]);
+                InetAddress IP = InetAddress.getLocalHost();
+                String currentIPAddress = IP.toString().split("/")[1] + ":" + port;
+                System.out.println("Current IP Address:" + currentIPAddress);
 
                 ExecutorService clientHandlingExecutor = Executors.newCachedThreadPool();
                 try (ServerSocket serverSocket = new ServerSocket(port)) {
                     System.out.println("TCP Server started on port " + port);
+                    // System.out.println("Current IP Address:" + serverSocket.getInetAddress());
+                    // System.out.println("Current Port:" + serverSocket.getLocalPort());
                     while (true) {
                         Socket clientSocket = serverSocket.accept();
                         clientHandlingExecutor.execute(() -> {
@@ -381,14 +368,15 @@ public class GenericNode {
                                         if (tokens.length == 3) {
                                             key = tokens[1];
                                             value = tokens[2];
-                                            Boolean isAborted = sendCommandDput1(key, value, ipAddressMap);
+                                            Boolean isAborted = sendCommandDput1(key, value, ipAddressMap,
+                                                    currentIPAddress);
                                             // if any member aborts, then do the following
                                             if (isAborted) {
-                                                sendCommandDputAbort(key, value, ipAddressMap);
+                                                sendCommandDputAbort(key, value, ipAddressMap, currentIPAddress);
                                                 response = "transaction aborted";
                                                 out.println(response);
                                             } else {
-                                                sendCommandDput2(key, value, ipAddressMap);
+                                                sendCommandDput2(key, value, ipAddressMap, currentIPAddress);
                                                 dataMap.put(key, value);
                                                 response = "put key=" + key;
                                                 out.println(response);
@@ -412,19 +400,20 @@ public class GenericNode {
                                             key = tokens[1];
                                             // Check if the key exists before attempting to remove it.
                                             if (dataMap.containsKey(key)) {
-                                                Boolean isAborted = sendCommandDdel1(key, ipAddressMap);
+                                                Boolean isAborted = sendCommandDdel1(key, ipAddressMap,
+                                                        currentIPAddress);
 
                                                 if (isAborted) {
-                                                    sendCommandDdelAbort(key, ipAddressMap);
+                                                    sendCommandDdelAbort(key, ipAddressMap, currentIPAddress);
                                                     response = "transaction aborted";
                                                     out.println(response);
                                                 } else {
-                                                    sendCommandDdel2(key, ipAddressMap);
+                                                    sendCommandDdel2(key, ipAddressMap, currentIPAddress);
                                                     dataMap.remove(key);
                                                     response = "delete key=" + key;
                                                     out.println(response);
                                                 }
-                                                
+
                                             } else {
                                                 // If the key does not exist, return an error message.
                                                 response = "Key does not exist";
