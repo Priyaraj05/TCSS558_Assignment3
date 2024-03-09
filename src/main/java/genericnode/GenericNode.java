@@ -36,11 +36,40 @@ public class GenericNode {
      * @param args the command line arguments
      */
 
+    // Using same HashMap for TCP and UDP
     static final Map<String, String> dataMap = new ConcurrentHashMap<>();
     static final Map<String, String> ipAddressMap = new ConcurrentHashMap<>();
     // create a set to store all locked keys
     static final Set<String> lockedKeys = new HashSet<>();
+    static String membershipServerIP;
+    static int membershipServerPort;
 
+
+    private static void loadNodeAddresses() {
+        try (Socket socket = new Socket(membershipServerIP, membershipServerPort);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            out.println("get_nodes");
+            String response = in.readLine();
+            String[] nodes = response.split(",");
+            ipAddressMap.clear();
+            for (String node : nodes) {
+                String[] parts = node.split(":");
+                if (parts.length == 2) {
+                    ipAddressMap.put(parts[0], parts[1]); // IP as key, PORT as value
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void startConfigurationReloading() {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
+    }
+    
     private static Boolean sendCommandDput1(String key, String value, Map<String, String> ipAddressMap,
             String currentIPAddress)
             throws IOException {
@@ -279,25 +308,7 @@ public class GenericNode {
         ddel2CommandExecutor.shutdown();
     }
 
-    private static void loadNodeAddresses() {
-        try {
-            List<String> lines = Files
-                    .readAllLines(Paths.get(Path.of("").toAbsolutePath().toString() + "/tmp/nodes.cfg"));
-            ipAddressMap.clear(); // Clear previous entries
 
-            for (int i = 0; i < lines.size(); i++) {
-                ipAddressMap.put("node" + i, lines.get(i));
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static void startConfigurationReloading() {
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
-    }
 
     public static void main(String[] args) throws IOException {
 
@@ -336,10 +347,16 @@ public class GenericNode {
                 }
             }
             if (args[0].equals("ts")) {
+                if (args.length != 4) {
+                    System.out.println("Usage: java -jar GenericNode.jar ts <listen-port> <membership-server-IP> <membership-server-port>");
+                    return;
+                }
                 startConfigurationReloading();
-                // System.out.printf("Current IP Addresses:", InetAddress.getLocalHost());
                 System.out.println("TCP SERVER");
                 int port = Integer.parseInt(args[1]);
+                membershipServerIP = args[2];
+                membershipServerPort = Integer.parseInt(args[3]);
+
                 InetAddress IP = InetAddress.getLocalHost();
                 String currentIPAddress = IP.toString().split("/")[1] + ":" + port;
                 System.out.println("Current IP Address:" + currentIPAddress);
