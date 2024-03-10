@@ -24,8 +24,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,14 +40,24 @@ public class GenericNode {
      */
 
     static final Map<String, String> dataMap = new ConcurrentHashMap<>();
+    // HashMap to store all members of the cluster in the TCP servers
     static final Map<String, String> ipAddressMap = new ConcurrentHashMap<>();
+    // HashMap to store all members of the cluster in the KVS server
+    static final Map<String, String> kvsAddressMap = new ConcurrentHashMap<>();
     // create a set to store all locked keys
     static final Set<String> lockedKeys = new HashSet<>();
 
     private static Boolean sendCommandDput1(String key, String value, Map<String, String> ipAddressMap,
-            String currentIPAddress)
+            String currentIPAddress, AtomicBoolean isKVS, String kvsIPAddress)
             throws IOException {
         Boolean isAborted = false;
+        HashMap<String, String> addressMap = new HashMap<String, String>();
+
+        if (isKVS.get()) {
+            addressMap = getAllFromKVS(kvsIPAddress);
+        } else {
+            addressMap.putAll(ipAddressMap);
+        }
 
         // Step 1: Get all members from member directory
         // Step 2: Loop through all members and send dput1 command to each member
@@ -52,7 +65,7 @@ public class GenericNode {
 
         ExecutorService dput1CommandExecutor = Executors.newCachedThreadPool();
 
-        for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
+        for (Map.Entry<String, String> entry : addressMap.entrySet()) {
 
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
@@ -83,13 +96,22 @@ public class GenericNode {
         return isAborted;
     }
 
-    private static Boolean sendCommandDdel1(String key, Map<String, String> ipAddressMap, String currentIPAddress)
+    private static Boolean sendCommandDdel1(String key, Map<String, String> ipAddressMap, String currentIPAddress,
+            AtomicBoolean isKVS, String kvsIPAddress)
             throws IOException {
         Boolean isAborted = false;
 
+        HashMap<String, String> addressMap = new HashMap<String, String>();
+
+        if (isKVS.get()) {
+            addressMap = getAllFromKVS(kvsIPAddress);
+        } else {
+            addressMap.putAll(ipAddressMap);
+        }
+
         ExecutorService ddel1CommandExecutor = Executors.newCachedThreadPool();
 
-        for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
+        for (Map.Entry<String, String> entry : addressMap.entrySet()) {
 
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
@@ -121,11 +143,19 @@ public class GenericNode {
     }
 
     private static void sendCommandDputAbort(String key, String value, Map<String, String> ipAddressMap,
-            String currentIPAddress) {
+            String currentIPAddress, AtomicBoolean isKVS, String kvsIPAddress) {
+
+        HashMap<String, String> addressMap = new HashMap<String, String>();
+
+        if (isKVS.get()) {
+            addressMap = getAllFromKVS(kvsIPAddress);
+        } else {
+            addressMap.putAll(ipAddressMap);
+        }
 
         ExecutorService dputAbortCommandExecutor = Executors.newCachedThreadPool();
 
-        for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
+        for (Map.Entry<String, String> entry : addressMap.entrySet()) {
 
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
@@ -150,7 +180,7 @@ public class GenericNode {
                                 ipAddress + ":" + port + " responsed with: " + response + " for dputabort command");
 
                     } catch (IOException e) {
-                        System.out.println("Error when sending dputabort command to " + entry.getKey());
+                        System.out.println("Error when sending dputabort command to " + ipAddress + ":" + port);
                     }
                 });
             }
@@ -160,11 +190,20 @@ public class GenericNode {
         dputAbortCommandExecutor.shutdown();
     }
 
-    private static void sendCommandDdelAbort(String key, Map<String, String> ipAddressMap, String currentIPAddress) {
+    private static void sendCommandDdelAbort(String key, Map<String, String> ipAddressMap, String currentIPAddress,
+            AtomicBoolean isKVS, String kvsIPAddress) {
+
+        HashMap<String, String> addressMap = new HashMap<String, String>();
+
+        if (isKVS.get()) {
+            addressMap = getAllFromKVS(kvsIPAddress);
+        } else {
+            addressMap.putAll(ipAddressMap);
+        }
 
         ExecutorService ddelAbortCommandExecutor = Executors.newCachedThreadPool();
 
-        for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
+        for (Map.Entry<String, String> entry : addressMap.entrySet()) {
 
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
@@ -189,7 +228,7 @@ public class GenericNode {
                                 ipAddress + ":" + port + " responsed with: " + response + " for ddelabort command");
 
                     } catch (IOException e) {
-                        System.out.println("Error when sending ddelabort command to " + entry.getKey());
+                        System.out.println("Error when sending ddelabort command to " + ipAddress + ":" + port);
                     }
                 });
             }
@@ -200,11 +239,19 @@ public class GenericNode {
     }
 
     private static void sendCommandDput2(String key, String value, Map<String, String> ipAddressMap,
-            String currentIPAddress) {
+            String currentIPAddress, AtomicBoolean isKVS, String kvsIPAddress) {
+
+        HashMap<String, String> addressMap = new HashMap<String, String>();
+
+        if (isKVS.get()) {
+            addressMap = getAllFromKVS(kvsIPAddress);
+        } else {
+            addressMap.putAll(ipAddressMap);
+        }
 
         ExecutorService dput2CommandExecutor = Executors.newCachedThreadPool();
 
-        for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
+        for (Map.Entry<String, String> entry : addressMap.entrySet()) {
 
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
@@ -229,7 +276,7 @@ public class GenericNode {
                                 ipAddress + ":" + port + " responsed with: " + response + " for dput2 command");
 
                     } catch (IOException e) {
-                        System.out.println("Error when sending dput2 command to " + entry.getKey());
+                        System.out.println("Error when sending dput2 command to " + ipAddress + ":" + port);
                     }
                 });
             }
@@ -239,11 +286,20 @@ public class GenericNode {
         dput2CommandExecutor.shutdown();
     }
 
-    private static void sendCommandDdel2(String key, Map<String, String> ipAddressMap, String currentIPAddress) {
+    private static void sendCommandDdel2(String key, Map<String, String> ipAddressMap, String currentIPAddress,
+            AtomicBoolean isKVS, String kvsIPAddress) {
+
+        HashMap<String, String> addressMap = new HashMap<String, String>();
+
+        if (isKVS.get()) {
+            addressMap = getAllFromKVS(kvsIPAddress);
+        } else {
+            addressMap.putAll(ipAddressMap);
+        }
 
         ExecutorService ddel2CommandExecutor = Executors.newCachedThreadPool();
 
-        for (Map.Entry<String, String> entry : ipAddressMap.entrySet()) {
+        for (Map.Entry<String, String> entry : addressMap.entrySet()) {
 
             String ipAddressPost = entry.getValue();
             String ipAddress = ipAddressPost.split(":")[0];
@@ -268,7 +324,7 @@ public class GenericNode {
                                 ipAddress + ":" + port + " responsed with: " + response + " for ddel2 command");
 
                     } catch (IOException e) {
-                        System.out.println("Error when sending ddel2 command to " + entry.getKey());
+                        System.out.println("Error when sending ddel2 command to " + ipAddress + ":" + port);
                     }
                 });
 
@@ -297,6 +353,61 @@ public class GenericNode {
     private static void startConfigurationReloading() {
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(GenericNode::loadNodeAddresses, 0, 5, TimeUnit.SECONDS);
+    }
+
+    private static void addToKVS(String kvsIPAddress, String currentIPAddress) {
+        try (Socket socket = new Socket(kvsIPAddress, 4410);
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            out.println("put " + currentIPAddress);
+            out.flush();
+
+        } catch (IOException e) {
+            System.out.println("Error when adding to key-value store");
+        }
+    }
+
+    // TODO: Get the key using the store command
+    private static void removeFromKVS(String kvsIPAddress, String currentIPAddress) {
+        try (Socket socket = new Socket(kvsIPAddress, 4410);
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            System.out.println("Server to be deleted: " + currentIPAddress);
+            out.println("del " + currentIPAddress);
+            out.flush();
+
+        } catch (IOException e) {
+            System.out.println("Error when removing from key-value store");
+        }
+    }
+
+    private static HashMap<String, String> getAllFromKVS(String kvsIPAddress) {
+        try (Socket socket = new Socket(kvsIPAddress, 4410);
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            out.println("store");
+            out.flush();
+
+            String response = in.readLine();
+            System.out.println("Data stored: " + response);
+
+            HashMap<String, String> localKvsAddressMap = new HashMap<String, String>();
+
+            // spilt the response by commas and store the values in a hashmap
+            String[] values = response.split(",");
+            for (int i = 0; i < values.length; i++) {
+                localKvsAddressMap.put("node" + i, values[i]);
+            }
+
+            return localKvsAddressMap;
+
+        } catch (IOException e) {
+            System.out.println("Error when getting from key-value store");
+        }
+        return null;
     }
 
     public static void main(String[] args) throws IOException {
@@ -336,19 +447,36 @@ public class GenericNode {
                 }
             }
             if (args[0].equals("ts")) {
-                startConfigurationReloading();
-                // System.out.printf("Current IP Addresses:", InetAddress.getLocalHost());
+
+                // This boolean is used to determine if the server is running in KVS mode or not
+                AtomicBoolean isKVS = new AtomicBoolean(false);
+                if (args.length == 3) {
+                    isKVS.set(true);
+                }
+
                 System.out.println("TCP SERVER");
                 int port = Integer.parseInt(args[1]);
+
                 InetAddress IP = InetAddress.getLocalHost();
                 String currentIPAddress = IP.toString().split("/")[1] + ":" + port;
+
+                AtomicReference<String> kvsIPAddress = new AtomicReference<>("Initial Value");
+                if (isKVS.get()) {
+                    kvsIPAddress.set(args[2]);
+                    addToKVS(kvsIPAddress.get(), currentIPAddress);
+                    System.out.println("Using KVS Server...");
+                    System.out.println(
+                            "Added current node to Centralized key-value store located at: " + kvsIPAddress + ":4410");
+                } else {
+                    startConfigurationReloading();
+                    System.out.println("Using config file...");
+                }
+
                 System.out.println("Current IP Address:" + currentIPAddress);
 
                 ExecutorService clientHandlingExecutor = Executors.newCachedThreadPool();
                 try (ServerSocket serverSocket = new ServerSocket(port)) {
-                    System.out.println("TCP Server started on port " + port);
-                    // System.out.println("Current IP Address:" + serverSocket.getInetAddress());
-                    // System.out.println("Current Port:" + serverSocket.getLocalPort());
+                    // System.out.println("TCP Server started on port " + port);
                     while (true) {
                         Socket clientSocket = serverSocket.accept();
                         clientHandlingExecutor.execute(() -> {
@@ -368,15 +496,18 @@ public class GenericNode {
                                         if (tokens.length == 3) {
                                             key = tokens[1];
                                             value = tokens[2];
+                                            // String kvsIPAddressString = kvsIPAddress.get();
                                             Boolean isAborted = sendCommandDput1(key, value, ipAddressMap,
-                                                    currentIPAddress);
+                                                    currentIPAddress, isKVS, kvsIPAddress.get());
                                             // if any member aborts, then do the following
                                             if (isAborted) {
-                                                sendCommandDputAbort(key, value, ipAddressMap, currentIPAddress);
+                                                sendCommandDputAbort(key, value, ipAddressMap, currentIPAddress, isKVS,
+                                                        kvsIPAddress.get());
                                                 response = "transaction aborted";
                                                 out.println(response);
                                             } else {
-                                                sendCommandDput2(key, value, ipAddressMap, currentIPAddress);
+                                                sendCommandDput2(key, value, ipAddressMap, currentIPAddress, isKVS,
+                                                        kvsIPAddress.get());
                                                 dataMap.put(key, value);
                                                 response = "put key=" + key;
                                                 out.println(response);
@@ -401,14 +532,16 @@ public class GenericNode {
                                             // Check if the key exists before attempting to remove it.
                                             if (dataMap.containsKey(key)) {
                                                 Boolean isAborted = sendCommandDdel1(key, ipAddressMap,
-                                                        currentIPAddress);
+                                                        currentIPAddress, isKVS, kvsIPAddress.get());
 
                                                 if (isAborted) {
-                                                    sendCommandDdelAbort(key, ipAddressMap, currentIPAddress);
+                                                    sendCommandDdelAbort(key, ipAddressMap, currentIPAddress, isKVS,
+                                                            kvsIPAddress.get());
                                                     response = "transaction aborted";
                                                     out.println(response);
                                                 } else {
-                                                    sendCommandDdel2(key, ipAddressMap, currentIPAddress);
+                                                    sendCommandDdel2(key, ipAddressMap, currentIPAddress, isKVS,
+                                                            kvsIPAddress.get());
                                                     dataMap.remove(key);
                                                     response = "delete key=" + key;
                                                     out.println(response);
@@ -439,8 +572,6 @@ public class GenericNode {
 
                                     case "dput1":
                                         System.out.println("dput1 command received");
-                                        System.out.println("Key: " + tokens[1]);
-                                        System.out.println("Value: " + tokens[2]);
 
                                         key = tokens[1];
                                         value = tokens[2];
@@ -521,6 +652,7 @@ public class GenericNode {
                                         break;
 
                                     case "exit":
+                                        removeFromKVS(kvsIPAddress.get(), currentIPAddress);
                                         response = "Server shutting down....";
                                         out.println(response);
                                         System.out.println("Server Shutting down....");
@@ -548,6 +680,99 @@ public class GenericNode {
                 } catch (IOException e) {
 
                     System.out.println(port + " is already in use");
+
+                }
+            }
+            if (args[0].equals("kvs")) {
+                System.out.println("Centralized membership key/value store");
+                InetAddress IP = InetAddress.getLocalHost();
+                String currentIPAddress = IP.toString().split("/")[1] + ":" + 4410;
+                System.out.println("Current IP Address:" + currentIPAddress);
+
+                ExecutorService clientHandlingExecutor = Executors.newCachedThreadPool();
+                try (ServerSocket serverSocket = new ServerSocket(4410)) {
+
+                    System.out.println("Key/value store Server started on port " + 4410);
+                    while (true) {
+                        Socket clientSocket = serverSocket.accept();
+                        clientHandlingExecutor.execute(() -> {
+                            try (
+                                    PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+                                    BufferedReader in = new BufferedReader(
+                                            new InputStreamReader(clientSocket.getInputStream()));) {
+                                String inputLine = in.readLine();
+                                String[] tokens = inputLine.split(" ");
+                                String command = tokens[0].toLowerCase().trim();
+                                String key;
+                                String value;
+                                String response = "";
+
+                                switch (command) {
+                                    case "put":
+                                        value = tokens[1];
+                                        key = "node" + kvsAddressMap.size();
+                                        kvsAddressMap.put(key, value);
+                                        System.out.println("Added node to key-value store: " + key + " : " + value);
+                                        response = "Member added: " + value;
+                                        out.println(response);
+                                        break;
+                                    case "del":
+                                        value = tokens[1];
+                                        String keyFound = null;
+                                        for (Map.Entry<String, String> entry : kvsAddressMap.entrySet()) {
+                                            if (entry.getValue().equals(value)) {
+                                                keyFound = entry.getKey();
+                                                break; // Exit the loop once a match is found
+                                            }
+                                        }
+
+                                        if (keyFound != null) {
+                                            kvsAddressMap.remove(keyFound);
+                                            System.out.println("Member deleted: " + value);
+                                            response = "Member deleted: " + value;
+                                            out.println(response);
+                                        } else {
+                                            System.out.println("Value " + value + " not found in the HashMap.");
+                                        }
+
+                                        response = "Member not found: " + value;
+                                        out.println(response);
+                                        break;
+                                    case "store":
+                                        StringBuilder sb = new StringBuilder();
+                                        kvsAddressMap.forEach((k, v) -> sb.append(v).append(","));
+                                        if (sb.length() > 0) {
+                                            // Remove the last comma
+                                            sb.deleteCharAt(sb.length() - 1);
+                                        }
+                                        response = sb.toString();
+                                        out.println(response); // Send the response to the client
+                                        out.flush(); // Ensure the response is sent immediately
+                                        break;
+
+                                    default:
+                                        response = "Unknown command.";
+                                        out.println(response);
+                                        break;
+                                }
+
+                            } catch (IOException e) {
+                                System.out.println("Error when receiving from client!");
+                            } finally {
+                                try {
+                                    clientSocket.close();
+                                } catch (IOException e) {
+                                    System.out.println("could not close client socket");
+                                    e.printStackTrace();
+                                }
+                            }
+                        });
+
+                    }
+
+                } catch (IOException e) {
+
+                    System.out.println(4410 + " is already in use");
 
                 }
             }
