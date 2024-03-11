@@ -368,7 +368,6 @@ public class GenericNode {
         }
     }
 
-    // TODO: Get the key using the store command
     private static void removeFromKVS(String kvsIPAddress, String currentIPAddress) {
         try (Socket socket = new Socket(kvsIPAddress, 4410);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);

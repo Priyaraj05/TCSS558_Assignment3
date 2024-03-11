@@ -6,5 +6,3 @@ COPY GenericNode.jar /
 COPY entrypoint_client.sh /
 ENTRYPOINT ["/entrypoint_client.sh"]
 CMD ["300"]
-
-

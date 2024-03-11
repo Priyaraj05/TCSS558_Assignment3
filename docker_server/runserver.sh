@@ -1,6 +1,7 @@
+#!/bin/bash
 # Dummy jar file 
 #java -jar GenericNode.jar 
-#TCP Server – centralized node directory if used 
-java -jar GenericNode.jar ts 4410 
-#TCP Server – KV store 
-#java -jar GenericNode.jar ts 1234 <IP of node directory if used> 
+#TCP Server – in config file mode
+# java -jar GenericNode.jar ts 8080 
+#TCP Server – Centralized TCP Membership Server mode
+java -jar GenericNode.jar ts 8080 172.17.0.3
